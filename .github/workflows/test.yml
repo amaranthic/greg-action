@@ -68,10 +68,13 @@ jobs:
           allowed_tools: "ReadFile, Glob, Grep"
 
       - name: Assert Action Results
+        env:
+          CONCLUSION: ${{ steps.test-greg.outputs.conclusion }}
+          STRUCTURED_OUTPUT: ${{ steps.test-greg.outputs.structured_output }}
         run: |
-          echo "Conclusion: ${{ steps.test-greg.outputs.conclusion }}"
-          echo "Structured Output: ${{ steps.test-greg.outputs.structured_output }}"
-          if [ "${{ steps.test-greg.outputs.conclusion }}" = "failure" ]; then
-            echo "Action failed!"
+          echo "Conclusion: $CONCLUSION"
+          echo "Structured Output length: ${#STRUCTURED_OUTPUT}"
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "Action did not succeed: $CONCLUSION"
             exit 1
           fi
