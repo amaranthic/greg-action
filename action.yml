@@ -106,9 +106,12 @@ runs:
   using: "composite"
   steps:
     - name: Setup Bun Runtime
-      uses: oven-sh/setup-bun@v2
-      with:
-        bun-version: latest
+      shell: bash
+      run: |
+        if ! command -v bun >/dev/null 2>&1; then
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+        fi
 
     - name: Install Dependencies
       shell: bash
