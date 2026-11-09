@@ -19,6 +19,8 @@ import { setupBranch, execGit } from "../../github/operations/branch.js";
 import {
   createInitialTrackingComment,
   updateTrackingComment,
+  extractToolParameterDetail,
+  type ToolActivityRecord,
 } from "../../github/operations/comments.js";
 import { configureGit } from "../../github/operations/git-config.js";
 import { restoreConfigFromBase } from "../../github/operations/restore-config.js";
@@ -58,9 +60,31 @@ export async function executeTagMode(options: {
 }): Promise<TagModeResult> {
   const { octokits, context, githubToken, apiKey, baseUrl } = options;
   const toolsUsed = new Set<string>();
+  const toolActivities: ToolActivityRecord[] = [];
+  const proposedParams = new Map<string, Record<string, unknown>>();
+  const startTime = Date.now();
+  let lastCommentUpdate = Date.now();
   let commentId: number | undefined;
   let fullResponse = "";
   let branchName: string | undefined;
+
+  /**
+   * Updates tracking comment with throttled frequency to avoid GitHub rate limits.
+   */
+  const maybeUpdateComment = async (force = false): Promise<void> => {
+    if (!commentId) return;
+    const now = Date.now();
+    if (!force && now - lastCommentUpdate < 4000) return;
+    lastCommentUpdate = now;
+    await updateTrackingComment(octokits.rest, context, commentId, {
+      environmentReady: true,
+      branchConfigured: true,
+      runningTurn: true,
+      triggerActor: context.actor,
+      durationMs: now - startTime,
+      toolActivities: [...toolActivities],
+    });
+  };
 
   try {
     // 1. Create sticky tracking comment
@@ -78,6 +102,8 @@ export async function executeTagMode(options: {
       await updateTrackingComment(octokits.rest, context, commentId, {
         environmentReady: true,
         branchConfigured: true,
+        triggerActor: context.actor,
+        durationMs: Date.now() - startTime,
       });
     }
 
@@ -144,6 +170,8 @@ export async function executeTagMode(options: {
         environmentReady: true,
         branchConfigured: true,
         runningTurn: true,
+        triggerActor: context.actor,
+        durationMs: Date.now() - startTime,
       });
     }
 
@@ -151,8 +179,30 @@ export async function executeTagMode(options: {
     for await (const event of engine.runTurn(initialPrompt)) {
       if (event.type === "tokenDelta") {
         fullResponse += event.text;
+      } else if (event.type === "toolCallProposed") {
+        proposedParams.set(
+          event.callId,
+          (event.parameters as Record<string, unknown>) || {}
+        );
       } else if (event.type === "toolExecutionStarted") {
         core.info(`Tool started: ${event.toolName}`);
+        const params = proposedParams.get(event.callId) || {};
+        const detail = extractToolParameterDetail(params);
+        toolActivities.push({
+          callId: event.callId,
+          toolName: event.toolName,
+          detail,
+        });
+        await maybeUpdateComment();
+      } else if (event.type === "toolExecutionFinished") {
+        const existing = toolActivities.find((a) => a.callId === event.callId);
+        if (existing) {
+          (existing as { isError?: boolean; durationMs?: number }).isError =
+            event.isError;
+          (existing as { isError?: boolean; durationMs?: number }).durationMs =
+            event.durationMs;
+        }
+        await maybeUpdateComment();
       }
     }
 
@@ -167,7 +217,7 @@ export async function executeTagMode(options: {
         execGit([
           "commit",
           "-m",
-          `🤖 Greg: implement changes for #${context.entityNumber}`,
+          `greg: implement changes for #${context.entityNumber}`,
         ]);
         if (branchName) {
           execGit(["push", "-u", "origin", branchName]);
@@ -185,6 +235,9 @@ export async function executeTagMode(options: {
         branchConfigured: true,
         turnCompleted: true,
         branchName,
+        triggerActor: context.actor,
+        durationMs: Date.now() - startTime,
+        toolActivities,
         responseSummary: fullResponse.slice(-3000),
       });
     }
@@ -203,6 +256,10 @@ export async function executeTagMode(options: {
 
     if (commentId) {
       await updateTrackingComment(octokits.rest, context, commentId, {
+        turnCompleted: false,
+        triggerActor: context.actor,
+        durationMs: Date.now() - startTime,
+        toolActivities,
         error: errorMessage,
       });
     }

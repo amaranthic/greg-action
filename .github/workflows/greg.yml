@@ -3,10 +3,20 @@ name: Greg Assistant
 on:
   issue_comment:
     types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   greg:
-    if: contains(github.event.comment.body, '@greg')
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@greg')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@greg')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@greg')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@greg') || contains(github.event.issue.title, '@greg') || github.event.assignee.login == 'greg'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
