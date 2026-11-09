@@ -1,0 +1,139 @@
+name: "Greg Action"
+description: "Autonomous GitHub engineering assistant built on Harnex. Interactive PR/issue assistance, automated code reviews, and CI task automation."
+branding:
+  icon: "cpu"
+  color: "purple"
+
+inputs:
+  model:
+    description: "Model identifier in 'provider/model_id' format (e.g. 'dummy', 'anthropic/claude-3-7-sonnet', 'openai/gpt-4o')"
+    required: false
+    default: "dummy"
+
+  api_key:
+    description: "API key for the selected AI model provider"
+    required: false
+    default: ""
+
+  base_url:
+    description: "Optional custom base URL endpoint. Defaults automatically based on provider if omitted."
+    required: false
+    default: ""
+
+  github_token:
+    description: "GitHub token (App token, PAT, or default github.token)"
+    required: false
+    default: "${{ github.token }}"
+
+  mode:
+    description: "Execution mode override: 'tag', 'review', or 'automation'. Auto-detected if omitted."
+    required: false
+    default: ""
+
+  prompt:
+    description: "Explicit task instructions for automation mode"
+    required: false
+    default: ""
+
+  trigger_phrase:
+    description: "Mention phrase to trigger tag mode in comments or issue bodies"
+    required: false
+    default: "@greg"
+
+  allowed_tools:
+    description: "Ant-style allowed tool rules (e.g. 'ReadFile, EditFile, Bash(npm test)')"
+    required: false
+    default: ""
+
+  disallowed_tools:
+    description: "Ant-style denied tool rules, evaluated with priority (e.g. 'Bash(curl:*)')"
+    required: false
+    default: ""
+
+  base_branch:
+    description: "Source branch for new branches (defaults to repository default branch)"
+    required: false
+    default: ""
+
+  branch_prefix:
+    description: "Prefix for automatically created branches"
+    required: false
+    default: "greg/"
+
+  branch_name_template:
+    description: "Template for generated branch names"
+    required: false
+    default: ""
+
+  use_sticky_comment:
+    description: "Whether to maintain an updating live progress comment in tag mode"
+    required: false
+    default: "true"
+
+  allowed_bots:
+    description: "Comma-separated list of allowed bot usernames or '*' to allow all"
+    required: false
+    default: ""
+
+  instructions:
+    description: "Additional instructions appended to Greg's system prompt"
+    required: false
+    default: ""
+
+  max_turns:
+    description: "Maximum reasoning steps allowed per turn"
+    required: false
+    default: "50"
+
+outputs:
+  conclusion:
+    description: "Execution status: 'success', 'failure', or 'skipped'"
+    value: "${{ steps.run-greg.outputs.conclusion }}"
+
+  branch_name:
+    description: "Name of the git branch created or pushed by Greg"
+    value: "${{ steps.run-greg.outputs.branch_name }}"
+
+  github_token:
+    description: "The GitHub token used during execution"
+    value: "${{ steps.run-greg.outputs.github_token }}"
+
+  structured_output:
+    description: "JSON-formatted run summary for downstream CI jobs"
+    value: "${{ steps.run-greg.outputs.structured_output }}"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun Runtime
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        npm ci --ignore-scripts || npm install --production
+
+    - name: Run Greg Action
+      id: run-greg
+      shell: bash
+      run: |
+        bun run src/entrypoints/run.ts
+      env:
+        INPUT_MODEL: "${{ inputs.model }}"
+        INPUT_API_KEY: "${{ inputs.api_key }}"
+        INPUT_BASE_URL: "${{ inputs.base_url }}"
+        INPUT_GITHUB_TOKEN: "${{ inputs.github_token }}"
+        INPUT_MODE: "${{ inputs.mode }}"
+        INPUT_PROMPT: "${{ inputs.prompt }}"
+        INPUT_TRIGGER_PHRASE: "${{ inputs.trigger_phrase }}"
+        INPUT_ALLOWED_TOOLS: "${{ inputs.allowed_tools }}"
+        INPUT_DISALLOWED_TOOLS: "${{ inputs.disallowed_tools }}"
+        INPUT_BASE_BRANCH: "${{ inputs.base_branch }}"
+        INPUT_BRANCH_PREFIX: "${{ inputs.branch_prefix }}"
+        INPUT_BRANCH_NAME_TEMPLATE: "${{ inputs.branch_name_template }}"
+        INPUT_USE_STICKY_COMMENT: "${{ inputs.use_sticky_comment }}"
+        INPUT_ALLOWED_BOTS: "${{ inputs.allowed_bots }}"
+        INPUT_INSTRUCTIONS: "${{ inputs.instructions }}"
+        INPUT_MAX_TURNS: "${{ inputs.max_turns }}"

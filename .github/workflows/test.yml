@@ -1,0 +1,76 @@
+name: Test & Verify Greg Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "Test prompt to execute in automation mode"
+        required: false
+        default: "Inspect package.json and summarize the project details."
+      model:
+        description: "Model to use for live test"
+        required: false
+        default: "anthropic/claude-3-7-sonnet"
+
+jobs:
+  quality-gate:
+    name: Typecheck, Format & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Verify Code Formatting
+        run: npm run format:check
+
+      - name: Verify TypeScript Types
+        run: npm run typecheck
+
+      - name: Run Test Suite
+        run: bun test
+
+  live-action-test:
+    name: Live Action Execution
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Test the action directly in this repository using `uses: ./`
+      - name: Run Greg Action (Automation Mode Self-Test)
+        id: test-greg
+        uses: ./
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.AI_API_KEY || 'test-key' }}
+          model: ${{ inputs.model || 'dummy' }}
+          mode: "automation"
+          prompt: ${{ inputs.prompt || 'Inspect package.json and verify the action configuration.' }}
+          allowed_tools: "ReadFile, Glob, Grep"
+
+      - name: Assert Action Results
+        run: |
+          echo "Conclusion: ${{ steps.test-greg.outputs.conclusion }}"
+          echo "Structured Output: ${{ steps.test-greg.outputs.structured_output }}"
+          if [ "${{ steps.test-greg.outputs.conclusion }}" = "failure" ]; then
+            echo "Action failed!"
+            exit 1
+          fi
