@@ -207,6 +207,9 @@ export async function executeTagMode(options: {
     }
 
     // 8. Commit and push any code changes if files were modified
+    let pushedBranch: string | undefined;
+    let createPrUrl: string | undefined;
+
     try {
       const gitStatus = execGit(["status", "--porcelain"]);
       if (gitStatus.trim().length > 0) {
@@ -222,7 +225,15 @@ export async function executeTagMode(options: {
         if (branchName) {
           execGit(["push", "-u", "origin", branchName]);
           core.info(`Pushed branch ${branchName} to origin.`);
+          pushedBranch = branchName;
+
+          if (!context.isPR) {
+            const { owner, repo } = context.repository;
+            createPrUrl = `https://github.com/${owner}/${repo}/compare/${branchInfo.baseBranch}...${pushedBranch}?expand=1`;
+          }
         }
+      } else {
+        core.info("No working tree modifications detected; skipping git push.");
       }
     } catch (gitErr) {
       core.warning(`Failed to push changes: ${gitErr}`);
@@ -234,7 +245,8 @@ export async function executeTagMode(options: {
         environmentReady: true,
         branchConfigured: true,
         turnCompleted: true,
-        branchName,
+        branchName: pushedBranch,
+        prLink: createPrUrl,
         triggerActor: context.actor,
         durationMs: Date.now() - startTime,
         toolActivities,

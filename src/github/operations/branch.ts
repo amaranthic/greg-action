@@ -134,6 +134,10 @@ export async function setupBranch(
   validateBranchName(baseBranchInput);
 
   if (isPR) {
+    let headRef: string | undefined;
+    let baseRef: string = baseBranchInput;
+    let prState = "open";
+
     const prPayload = context.payload as {
       pull_request?: {
         head?: { ref?: string; sha?: string };
@@ -142,9 +146,26 @@ export async function setupBranch(
       };
     };
 
-    const headRef = prPayload.pull_request?.head?.ref;
-    const baseRef = prPayload.pull_request?.base?.ref || baseBranchInput;
-    const prState = prPayload.pull_request?.state || "open";
+    if (prPayload.pull_request?.head?.ref) {
+      headRef = prPayload.pull_request.head.ref;
+      baseRef = prPayload.pull_request.base?.ref || baseBranchInput;
+      prState = prPayload.pull_request.state || "open";
+    } else {
+      try {
+        const prResponse = await octokits.rest.pulls.get({
+          owner,
+          repo,
+          pull_number: context.entityNumber,
+        });
+        headRef = prResponse.data.head.ref;
+        baseRef = prResponse.data.base.ref;
+        prState = prResponse.data.state;
+      } catch (err) {
+        core.warning(
+          `Failed to fetch PR #${context.entityNumber} details: ${err}`
+        );
+      }
+    }
 
     if (prState === "open" && headRef) {
       validateBranchName(headRef);
@@ -153,10 +174,10 @@ export async function setupBranch(
       core.info(`Open PR #${context.entityNumber}: checking out ${headRef}...`);
       try {
         execGit(["fetch", "origin", headRef]);
-        execGit(["checkout", headRef]);
+        execGit(["checkout", "-B", headRef, `origin/${headRef}`]);
       } catch (err) {
         core.warning(
-          `Direct checkout of ${headRef} failed: ${err}; ensuring branch exists locally`
+          `Direct tracking checkout of ${headRef} failed: ${err}; falling back to local branch`
         );
         execGit(["checkout", "-B", headRef]);
       }

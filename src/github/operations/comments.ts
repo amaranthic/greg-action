@@ -37,6 +37,7 @@ export interface CommentProgressState {
   readonly runningTurn?: boolean;
   readonly turnCompleted?: boolean;
   readonly branchName?: string;
+  readonly prLink?: string;
   readonly responseSummary?: string;
   readonly error?: string;
   readonly triggerActor?: string;
@@ -125,6 +126,9 @@ export function buildCommentBody(
   if (state.branchName) {
     const branchUrl = `https://github.com/${owner}/${repo}/tree/${encodeURIComponent(state.branchName)}`;
     links += ` • [\`${state.branchName}\`](${branchUrl})`;
+  }
+  if (state.prLink) {
+    links += ` • [Create PR ➔](${state.prLink})`;
   }
 
   let body = `${header}${links}\n\n`;

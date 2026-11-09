@@ -75,12 +75,14 @@ describe("comments formatting", () => {
     expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}]/u.test(body)).toBe(false);
   });
 
-  it("builds final completed comment with branch link, summary, and duration", () => {
+  it("builds final completed comment with branch link, PR creation link, summary, and duration", () => {
     const body = buildCommentBody("amaranthic", "greg-action", "12345", {
       turnCompleted: true,
       triggerActor: "sapirrior",
       durationMs: 45000,
       branchName: "greg/issue-1-test",
+      prLink:
+        "https://github.com/amaranthic/greg-action/compare/main...greg/issue-1-test?expand=1",
       responseSummary: "All tests have passed successfully.",
       toolActivities: [
         { toolName: "Bash", detail: "npm test", durationMs: 4200 },
@@ -91,8 +93,29 @@ describe("comments formatting", () => {
     expect(body).toContain(
       "[`greg/issue-1-test`](https://github.com/amaranthic/greg-action/tree/greg%2Fissue-1-test)"
     );
+    expect(body).toContain(
+      "[Create PR ➔](https://github.com/amaranthic/greg-action/compare/main...greg/issue-1-test?expand=1)"
+    );
     expect(body).toContain("All tests have passed successfully.");
     expect(body).toContain("<summary>Tool activity (1 call)</summary>");
+    expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}]/u.test(body)).toBe(false);
+  });
+
+  it("builds completed comment without branch or PR link when no changes were pushed", () => {
+    const body = buildCommentBody("amaranthic", "greg-action", "12345", {
+      turnCompleted: true,
+      triggerActor: "sapirrior",
+      durationMs: 8000,
+      responseSummary: "Test suite report: all 42 unit tests passed.",
+      toolActivities: [
+        { toolName: "Bash", detail: "npm test", durationMs: 4200 },
+      ],
+    });
+
+    expect(body).toContain("**Greg finished @sapirrior's task in 8s**");
+    expect(body).not.toContain("tree/");
+    expect(body).not.toContain("Create PR");
+    expect(body).toContain("Test suite report: all 42 unit tests passed.");
     expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}]/u.test(body)).toBe(false);
   });
 
