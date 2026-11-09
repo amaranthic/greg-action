@@ -14,7 +14,7 @@ on:
       model:
         description: "Model to use for live test"
         required: false
-        default: "anthropic/claude-3-7-sonnet"
+        default: "google/gemini-flash-lite-latest"
 
 jobs:
   quality-gate:
@@ -27,8 +27,7 @@ jobs:
       - name: Setup Bun
         run: |
           if ! command -v bun >/dev/null 2>&1; then
-            curl -fsSL https://bun.sh/install | bash
-            echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+            npm install -g bun
           fi
 
       - name: Install Dependencies
@@ -62,8 +61,8 @@ jobs:
         uses: ./
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.AI_API_KEY || 'test-key' }}
-          model: ${{ inputs.model || 'dummy' }}
+          api_key: ${{ secrets.AI_API_KEY }}
+          model: ${{ inputs.model || 'google/gemini-flash-lite-latest' }}
           mode: "automation"
           prompt: ${{ inputs.prompt || 'Inspect package.json and verify the action configuration.' }}
           allowed_tools: "ReadFile, Glob, Grep"

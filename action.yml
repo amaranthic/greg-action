@@ -109,8 +109,7 @@ runs:
       shell: bash
       run: |
         if ! command -v bun >/dev/null 2>&1; then
-          curl -fsSL https://bun.sh/install | bash
-          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+          npm install -g bun
         fi
 
     - name: Install Dependencies
