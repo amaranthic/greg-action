@@ -1,0 +1,28 @@
+name: Greg Assistant
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  greg:
+    if: contains(github.event.comment.body, '@greg')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Greg Action
+        uses: ./
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          api_key: ${{ secrets.AI_API_KEY }}
+          model: "google/gemini-flash-lite-latest"
+          allowed_tools: "ReadFile, EditFile, WriteFile, Glob, Grep, Bash(npm:*), Bash(git:*)"
